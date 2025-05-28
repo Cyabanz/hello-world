@@ -16,15 +16,20 @@ app.get('/', (req, res) => {
 
 app.get('/computer', async (req, res) => {
   if (computer) {
-    res.send({...computer, sessionActive})
+    res.send({ ...computer, sessionActive })
     return
   }
-  const resp = await axios.post('https://engine.hyperbeam.com/v0/vm', {}, {
-    headers: { 'Authorization': `Bearer ${apiKey}` }
-  })
-
-  computer = resp.data
-  res.send({...computer, sessionActive: false})
+  try {
+    const resp = await axios.post('https://engine.hyperbeam.com/v0/vm', {}, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    })
+    computer = resp.data
+    res.send({ ...computer, sessionActive: false })
+  } catch (error) {
+    // Handle 503 and other errors gracefully
+    console.error('Failed to start session:', error.message)
+    res.status(503).send({ error: "Failed to start session. Hyperbeam service may be unavailable or API key may be invalid." })
+  }
 })
 
 app.get('/end-session', async (req, res) => {
@@ -38,6 +43,7 @@ app.get('/end-session', async (req, res) => {
       if (sessionTimer) clearTimeout(sessionTimer);
       res.send({ success: true })
     } catch (error) {
+      console.error('Failed to end session:', error.message)
       res.status(500).send({ error: "Failed to end session" })
     }
   } else {
@@ -47,4 +53,9 @@ app.get('/end-session', async (req, res) => {
 
 app.listen(8080, () => {
   console.log('Server start at http://localhost:8080')
+})
+
+// Optional: Catch any unhandled promise rejections globally
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason)
 })
