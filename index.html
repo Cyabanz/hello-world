@@ -1,235 +1,167 @@
+<!-- ---- FRONTEND: Simple HTML & JS ---- -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cloud Computer</title>
-  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-  <style>
-    body {
-      font-family: sans-serif;
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    .controls {
-      display: flex;
-      gap: 15px;
-      align-items: center;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-    }
-    button {
-      padding: 8px 16px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-      transition: background 0.3s;
-    }
-    button:disabled {
-      background: #cccccc;
-      cursor: not-allowed;
-    }
-    button.danger {
-      background: #f44336;
-    }
-    button.fullscreen {
-      background: #1e88e5;
-    }
-    #timer {
-      font-size: 24px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    #timer i {
-      font-size: 28px;
-      color: #f44336;
-      animation: pulse 1s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.1); }
-      100% { transform: scale(1); }
-    }
-    #cloudComputerDiv {
-      height: 720px;
-      width: 100%;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      display: none;
-      background: #111;
-      position: relative;
-    }
-    .volume-control {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Hyperbeam 5-min VM Session</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        #session { margin-top: 2em; }
+        iframe { width: 800px; height: 450px; border: 1px solid #ccc; }
+        button { margin-right: 1em; }
+        #modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        #modalContent {
+            background: #fff;
+            padding: 2em;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.2em;
+            min-width: 200px;
+        }
+        #historyList { margin: 0; padding-left: 1.3em; }
+        #historyList li { margin-bottom: 0.3em; }
+    </style>
 </head>
 <body>
-  <div class="controls">
-    <button id="startSessionBtn">Start Session</button>
-    <button id="gotoSiteBtn" disabled>Open cyabanz.github.io</button>
-    <button id="fullScreenBtn" class="fullscreen" disabled><i class='bx bx-fullscreen'></i> Full Screen</button>
-    <button id="endSessionBtn" class="danger" disabled>End Session</button>
-    <div id="timer" style="display: none;">
-      <i class='bx bx-time-five'></i>
-      <span id="timeDisplay">05:00</span>
+    <h1>Hyperbeam 5-Minute VM Session</h1>
+    <div>
+        <button id="startBtn">Start VM Session (5 min)</button>
+        <button id="killBtn" disabled>Kill Session</button>
+        <span id="timer"></span>
     </div>
-    <div class="volume-control">
-      <span>Volume:</span>
-      <input type="range" min="0" max="100" value="100" id="range">
+    <div id="session"></div>
+
+    <div style="margin-top:2em;">
+        <h2>Session History</h2>
+        <button onclick="loadHistory()">Refresh History</button>
+        <ul id="historyList"></ul>
     </div>
-  </div>
-  <p>Current website: <span id="currentSite"></span></p>
-  <div id="cloudComputerDiv"></div>
 
-  <script type="module">
-    import Hyperbeam from "https://unpkg.com/@hyperbeam/web@latest/dist/index.js"
-    
-    const startSessionBtn = document.getElementById('startSessionBtn')
-    const gotoSiteBtn = document.getElementById('gotoSiteBtn')
-    const endSessionBtn = document.getElementById('endSessionBtn')
-    const fullScreenBtn = document.getElementById('fullScreenBtn')
-    const timerDisplay = document.getElementById('timer')
-    const timeDisplay = document.getElementById('timeDisplay')
-    const range = document.getElementById('range')
-    const currentSite = document.getElementById('currentSite')
-    const cloudComputerDiv = document.getElementById('cloudComputerDiv')
-    
-    let hb = null;
-    let timer = null;
-    let timeLeft = 300; // 5 minutes in seconds
+    <!-- 10-second warning modal -->
+    <div id="modal">
+        <div id="modalContent">
+            <strong>Session will end in 10 seconds!</strong><br>
+            Please save your work.
+            <br><br>
+            <button onclick="closeModal()">OK</button>
+        </div>
+    </div>
 
-    function resetUI() {
-      cloudComputerDiv.style.display = "none"
-      startSessionBtn.disabled = false
-      gotoSiteBtn.disabled = true
-      endSessionBtn.disabled = true
-      fullScreenBtn.disabled = true
-      timerDisplay.style.display = "none"
-      timeLeft = 300
-      timeDisplay.textContent = "05:00"
-      currentSite.innerText = ""
-      if (timer) {
-        clearInterval(timer)
-        timer = null
-      }
-    }
-    
-    startSessionBtn.addEventListener('click', async () => {
-      try {
-        const resp = await fetch("/computer")
-        const data = await resp.json()
-        
-        if (data.sessionActive) {
-          alert("A session is already active")
-          return
-        }
-        
-        hb = await Hyperbeam(cloudComputerDiv, data.embed_url)
-        cloudComputerDiv.style.display = "block"
-        
-        // Enable/disable buttons
-        startSessionBtn.disabled = true
-        gotoSiteBtn.disabled = false
-        endSessionBtn.disabled = false
-        fullScreenBtn.disabled = false
-        timerDisplay.style.display = "flex"
-        
-        // Start the timer
-        timeLeft = 300;
-        timeDisplay.textContent = "05:00";
-        if (timer) clearInterval(timer)
-        timer = setInterval(() => {
-          timeLeft--
-          const minutes = Math.floor(timeLeft / 60)
-          const seconds = timeLeft % 60
-          timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-          if (timeLeft <= 0) {
-            clearInterval(timer)
-            timer = null
-            endSession()
-          }
-        }, 1000)
-        
-        // Listen to tab changes
-        hb.tabs.onUpdated.addListener((tabId, changeInfo) => {
-          if (changeInfo.title)
-            currentSite.innerText = changeInfo.title
-        })
-        
-        // Set session as active on server (optional, ignored if not implemented on backend)
-        // await fetch("/computer", { method: "POST" })
-        
-      } catch (error) {
-        console.error("Error starting session:", error)
-        alert("Failed to start session")
-        resetUI()
-      }
-    })
-    
-    gotoSiteBtn.addEventListener("click", () => {
-      if (hb) {
-        hb.tabs.update({ url: "https://cyabanz.github.io" })
-      }
-    })
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const killBtn = document.getElementById('killBtn');
+        const sessionDiv = document.getElementById('session');
+        const timerSpan = document.getElementById('timer');
+        let interval = null;
+        let warned = false;
 
-    fullScreenBtn.addEventListener("click", () => {
-      if (cloudComputerDiv.requestFullscreen) {
-        cloudComputerDiv.requestFullscreen()
-      } else if (cloudComputerDiv.webkitRequestFullscreen) {
-        cloudComputerDiv.webkitRequestFullscreen()
-      } else if (cloudComputerDiv.msRequestFullscreen) {
-        cloudComputerDiv.msRequestFullscreen()
-      }
-    })
-    
-    endSessionBtn.addEventListener("click", async () => {
-      await endSession()
-    })
-    
-    range.addEventListener("change", (e) => {
-      if (hb) hb.volume = e.target.value / 100
-    })
-    
-    async function endSession() {
-      try {
-        // Always use POST for end-session to match the fetch call
-        const response = await fetch("/end-session", { method: "POST" })
-        const result = await response.json()
-        
-        if (result.success) {
-          if (hb) {
-            hb.destroy()
-            hb = null
-          }
-          resetUI()
-        } else {
-          alert(result.message || "Failed to end session")
-          // Even if backend fails, try to clean up frontend
-          if (hb) {
-            hb.destroy()
-            hb = null
-          }
-          resetUI()
+        async function checkStatus() {
+            const res = await fetch('http://localhost:3000/status');
+            const data = await res.json();
+            if (data.active) {
+                showSession(data.url);
+                killBtn.disabled = false;
+                startBtn.disabled = true;
+                startTimer(data.timeLeft);
+            } else {
+                hideSession();
+            }
         }
-      } catch (error) {
-        console.error("Error ending session:", error)
-        alert("Failed to end session")
-        if (hb) {
-          hb.destroy()
-          hb = null
+
+        function startTimer(msLeft) {
+            clearInterval(interval);
+            warned = false;
+            let end = Date.now() + msLeft;
+            interval = setInterval(() => {
+                let remain = Math.max(0, end - Date.now());
+                let min = Math.floor(remain / 60000);
+                let sec = Math.floor((remain % 60000) / 1000);
+                timerSpan.textContent = `Time left: ${min}:${sec.toString().padStart(2, '0')}`;
+                // 10-second warning modal
+                if (remain <= 10000 && !warned) {
+                    warned = true;
+                    showModal();
+                }
+                if (remain <= 0) {
+                    clearInterval(interval);
+                    timerSpan.textContent = "";
+                    hideSession();
+                    loadHistory();
+                }
+            }, 500);
         }
-        resetUI()
-      }
-    }
-  </script>
+
+        function showSession(url) {
+            sessionDiv.innerHTML = `<iframe src="${url}" allow="clipboard-read; clipboard-write; autoplay; fullscreen" allowfullscreen></iframe>`;
+            killBtn.disabled = false;
+            startBtn.disabled = true;
+        }
+        function hideSession() {
+            sessionDiv.innerHTML = '';
+            killBtn.disabled = true;
+            startBtn.disabled = false;
+            timerSpan.textContent = "";
+            clearInterval(interval);
+        }
+
+        startBtn.onclick = async () => {
+            startBtn.disabled = true;
+            const res = await fetch('http://localhost:3000/start', { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                showSession(data.url);
+                killBtn.disabled = false;
+                checkStatus();
+                loadHistory();
+            } else {
+                alert("Could not start session!");
+                startBtn.disabled = false;
+            }
+        };
+        killBtn.onclick = async () => {
+            killBtn.disabled = true;
+            await fetch('http://localhost:3000/kill', { method: 'POST' });
+            hideSession();
+            loadHistory();
+        };
+
+        // Poll session status every 5 seconds
+        setInterval(checkStatus, 5000);
+        checkStatus();
+
+        // Session History
+        async function loadHistory() {
+            const res = await fetch('http://localhost:3000/history');
+            const data = await res.json();
+            let list = document.getElementById('historyList');
+            list.innerHTML = "";
+            if (data.history.length === 0) {
+                list.innerHTML = "<li>No sessions yet.</li>";
+                return;
+            }
+            data.history.forEach((h, i) => {
+                let started = new Date(h.startedAt).toLocaleString();
+                let ended = h.endedAt ? new Date(h.endedAt).toLocaleString() : "<em>In Progress</em>";
+                list.innerHTML += `<li>Session ${i+1}: Started <b>${started}</b>, Ended <b>${ended}</b></li>`;
+            });
+        }
+        window.onload = loadHistory;
+
+        // 10-second warning modal
+        function showModal() {
+            document.getElementById('modal').style.display = 'flex';
+        }
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+    </script>
 </body>
 </html>
