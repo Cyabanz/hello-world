@@ -1,26 +1,194 @@
-<div style="font-family: sans-serif">
-  <button id="gotoYouTubeBtn">Open Youtube.com</button>
-  Volume: <input type="range" min="0" max="100" value="100" id="range">
-  <p>Current website: <span id="currentSite"></p>
-</div>
-<div id="cloudComputerDiv" style="height:720px;width:1280px"></div>
-<script type="module">
-  import Hyperbeam from "https://unpkg.com/@hyperbeam/web@latest/dist/index.js"
-  const resp = await fetch("/computer")
-  const data = await resp.json()
-  const hb = await Hyperbeam(cloudComputerDiv, data.embed_url)
-  // Programmatically navigate to websites
-  gotoYouTubeBtn.addEventListener("click", () => {
-    hb.tabs.update({ url: "https://youtube.com" })
-  })
-  // Control the user's local volume
-  range.addEventListener("change", (e) => {
-    hb.volume = e.target.value / 100
-  })
-  // Listen to tab changes
-  // (e.g. get the tab's new title when the user visits a different site)
-  hb.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.title)
-      currentSite.innerText = changeInfo.title
-  })
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Computer</title>
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .controls {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 8px 16px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.3s;
+    }
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    button.danger {
+      background: #f44336;
+    }
+    #timer {
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #timer i {
+      font-size: 28px;
+      color: #f44336;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+    #cloudComputerDiv {
+      height: 720px;
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      display: none;
+    }
+    .volume-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button id="startSessionBtn">Start Session</button>
+    <button id="gotoSiteBtn" disabled>Open cyabanz.github.io</button>
+    <button id="endSessionBtn" class="danger" disabled>End Session</button>
+    <div id="timer" style="display: none;">
+      <i class='bx bx-time-five'></i>
+      <span id="timeDisplay">05:00</span>
+    </div>
+    <div class="volume-control">
+      <span>Volume:</span>
+      <input type="range" min="0" max="100" value="100" id="range">
+    </div>
+  </div>
+  <p>Current website: <span id="currentSite"></span></p>
+  <div id="cloudComputerDiv"></div>
+
+  <script type="module">
+    import Hyperbeam from "https://unpkg.com/@hyperbeam/web@latest/dist/index.js"
+    
+    const startSessionBtn = document.getElementById('startSessionBtn')
+    const gotoSiteBtn = document.getElementById('gotoSiteBtn')
+    const endSessionBtn = document.getElementById('endSessionBtn')
+    const timerDisplay = document.getElementById('timer')
+    const timeDisplay = document.getElementById('timeDisplay')
+    const range = document.getElementById('range')
+    const currentSite = document.getElementById('currentSite')
+    const cloudComputerDiv = document.getElementById('cloudComputerDiv')
+    
+    let hb = null;
+    let timeLeft = 300; // 5 minutes in seconds
+    
+    startSessionBtn.addEventListener('click', async () => {
+      try {
+        const resp = await fetch("/computer")
+        const data = await resp.json()
+        
+        if (data.sessionActive) {
+          alert("A session is already active")
+          return
+        }
+        
+        hb = await Hyperbeam(cloudComputerDiv, data.embed_url)
+        cloudComputerDiv.style.display = "block"
+        
+        // Enable/disable buttons
+        startSessionBtn.disabled = true
+        gotoSiteBtn.disabled = false
+        endSessionBtn.disabled = false
+        timerDisplay.style.display = "flex"
+        
+        // Start the timer
+        const timer = setInterval(() => {
+          timeLeft--
+          
+          const minutes = Math.floor(timeLeft / 60)
+          const seconds = timeLeft % 60
+          timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+          
+          if (timeLeft <= 0) {
+            clearInterval(timer)
+            endSession()
+          }
+        }, 1000)
+        
+        // Listen to tab changes
+        hb.tabs.onUpdated.addListener((tabId, changeInfo) => {
+          if (changeInfo.title)
+            currentSite.innerText = changeInfo.title
+        })
+        
+        // Set session as active on server
+        await fetch("/computer", { method: "POST" })
+        
+      } catch (error) {
+        console.error("Error starting session:", error)
+        alert("Failed to start session")
+      }
+    })
+    
+    gotoSiteBtn.addEventListener("click", () => {
+      if (hb) {
+        hb.tabs.update({ url: "https://cyabanz.github.io" })
+      }
+    })
+    
+    endSessionBtn.addEventListener("click", async () => {
+      await endSession()
+    })
+    
+    range.addEventListener("change", (e) => {
+      if (hb) hb.volume = e.target.value / 100
+    })
+    
+    async function endSession() {
+      try {
+        const response = await fetch("/end-session", { method: "POST" })
+        const result = await response.json()
+        
+        if (result.success) {
+          if (hb) {
+            hb.destroy()
+            hb = null
+          }
+          
+          // Reset UI
+          cloudComputerDiv.style.display = "none"
+          startSessionBtn.disabled = false
+          gotoSiteBtn.disabled = true
+          endSessionBtn.disabled = true
+          timerDisplay.style.display = "none"
+          timeLeft = 300
+          timeDisplay.textContent = "05:00"
+          currentSite.innerText = ""
+        } else {
+          alert(result.message || "Failed to end session")
+        }
+      } catch (error) {
+        console.error("Error ending session:", error)
+        alert("Failed to end session")
+      }
+    }
+  </script>
+</body>
+</html>
