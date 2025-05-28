@@ -36,6 +36,9 @@
     button.danger {
       background: #f44336;
     }
+    button.fullscreen {
+      background: #1e88e5;
+    }
     #timer {
       font-size: 24px;
       font-weight: bold;
@@ -59,6 +62,8 @@
       border: 1px solid #ddd;
       border-radius: 4px;
       display: none;
+      background: #111;
+      position: relative;
     }
     .volume-control {
       display: flex;
@@ -71,6 +76,7 @@
   <div class="controls">
     <button id="startSessionBtn">Start Session</button>
     <button id="gotoSiteBtn" disabled>Open cyabanz.github.io</button>
+    <button id="fullScreenBtn" class="fullscreen" disabled><i class='bx bx-fullscreen'></i> Full Screen</button>
     <button id="endSessionBtn" class="danger" disabled>End Session</button>
     <div id="timer" style="display: none;">
       <i class='bx bx-time-five'></i>
@@ -90,6 +96,7 @@
     const startSessionBtn = document.getElementById('startSessionBtn')
     const gotoSiteBtn = document.getElementById('gotoSiteBtn')
     const endSessionBtn = document.getElementById('endSessionBtn')
+    const fullScreenBtn = document.getElementById('fullScreenBtn')
     const timerDisplay = document.getElementById('timer')
     const timeDisplay = document.getElementById('timeDisplay')
     const range = document.getElementById('range')
@@ -97,7 +104,24 @@
     const cloudComputerDiv = document.getElementById('cloudComputerDiv')
     
     let hb = null;
+    let timer = null;
     let timeLeft = 300; // 5 minutes in seconds
+
+    function resetUI() {
+      cloudComputerDiv.style.display = "none"
+      startSessionBtn.disabled = false
+      gotoSiteBtn.disabled = true
+      endSessionBtn.disabled = true
+      fullScreenBtn.disabled = true
+      timerDisplay.style.display = "none"
+      timeLeft = 300
+      timeDisplay.textContent = "05:00"
+      currentSite.innerText = ""
+      if (timer) {
+        clearInterval(timer)
+        timer = null
+      }
+    }
     
     startSessionBtn.addEventListener('click', async () => {
       try {
@@ -116,18 +140,21 @@
         startSessionBtn.disabled = true
         gotoSiteBtn.disabled = false
         endSessionBtn.disabled = false
+        fullScreenBtn.disabled = false
         timerDisplay.style.display = "flex"
         
         // Start the timer
-        const timer = setInterval(() => {
+        timeLeft = 300;
+        timeDisplay.textContent = "05:00";
+        if (timer) clearInterval(timer)
+        timer = setInterval(() => {
           timeLeft--
-          
           const minutes = Math.floor(timeLeft / 60)
           const seconds = timeLeft % 60
           timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-          
           if (timeLeft <= 0) {
             clearInterval(timer)
+            timer = null
             endSession()
           }
         }, 1000)
@@ -138,18 +165,29 @@
             currentSite.innerText = changeInfo.title
         })
         
-        // Set session as active on server
-        await fetch("/computer", { method: "POST" })
+        // Set session as active on server (optional, ignored if not implemented on backend)
+        // await fetch("/computer", { method: "POST" })
         
       } catch (error) {
         console.error("Error starting session:", error)
         alert("Failed to start session")
+        resetUI()
       }
     })
     
     gotoSiteBtn.addEventListener("click", () => {
       if (hb) {
         hb.tabs.update({ url: "https://cyabanz.github.io" })
+      }
+    })
+
+    fullScreenBtn.addEventListener("click", () => {
+      if (cloudComputerDiv.requestFullscreen) {
+        cloudComputerDiv.requestFullscreen()
+      } else if (cloudComputerDiv.webkitRequestFullscreen) {
+        cloudComputerDiv.webkitRequestFullscreen()
+      } else if (cloudComputerDiv.msRequestFullscreen) {
+        cloudComputerDiv.msRequestFullscreen()
       }
     })
     
@@ -163,6 +201,7 @@
     
     async function endSession() {
       try {
+        // Always use POST for end-session to match the fetch call
         const response = await fetch("/end-session", { method: "POST" })
         const result = await response.json()
         
@@ -171,22 +210,24 @@
             hb.destroy()
             hb = null
           }
-          
-          // Reset UI
-          cloudComputerDiv.style.display = "none"
-          startSessionBtn.disabled = false
-          gotoSiteBtn.disabled = true
-          endSessionBtn.disabled = true
-          timerDisplay.style.display = "none"
-          timeLeft = 300
-          timeDisplay.textContent = "05:00"
-          currentSite.innerText = ""
+          resetUI()
         } else {
           alert(result.message || "Failed to end session")
+          // Even if backend fails, try to clean up frontend
+          if (hb) {
+            hb.destroy()
+            hb = null
+          }
+          resetUI()
         }
       } catch (error) {
         console.error("Error ending session:", error)
         alert("Failed to end session")
+        if (hb) {
+          hb.destroy()
+          hb = null
+        }
+        resetUI()
       }
     }
   </script>
