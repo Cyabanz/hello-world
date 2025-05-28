@@ -20,13 +20,16 @@ app.get('/computer', async (req, res) => {
     return
   }
   try {
-    const resp = await axios.post('https://engine.hyperbeam.com/v0/vm', {}, {
-      headers: { 'Authorization': `Bearer ${apiKey}` }
-    })
+    // Set the default site to cyabanz.github.io when starting a Hyperbeam session
+    const resp = await axios.post(
+      'https://engine.hyperbeam.com/v0/vm',
+      { url: "https://cyabanz.github.io" },
+      { headers: { 'Authorization': `Bearer ${apiKey}` } }
+    )
     computer = resp.data
     res.send({ ...computer, sessionActive: false })
   } catch (error) {
-    // Handle 503 and other errors gracefully
+    // Handle errors gracefully
     console.error('Failed to start session:', error.message)
     res.status(503).send({ error: "Failed to start session. Hyperbeam service may be unavailable or API key may be invalid." })
   }
